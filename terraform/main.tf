@@ -1,10 +1,10 @@
 resource "azurerm_resource_group" "rg" {
-  name     = "casopractico2-rg"
-  location = "East US"
+  name     = "casopractico2-lgc2--rg"
+  location = "West Europe"
 }
 
 resource "azurerm_container_registry" "acr" {
-  name                = "casopractico2acr"
+  name                = "casopractico2lgc2acr"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   sku                 = "Basic"
@@ -12,7 +12,7 @@ resource "azurerm_container_registry" "acr" {
 }
 
 resource "azurerm_virtual_network" "vnet" {
-  name                = "casopractico2-vnet"
+  name                = "casopractico2-lgc2--vnet"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   address_space       = ["10.0.0.0/16"]
@@ -46,11 +46,11 @@ resource "azurerm_network_interface" "nic" {
 }
 
 resource "azurerm_virtual_machine" "vm" {
-  name                  = "casopractico2-vm"
+  name                  = "casopractico2-lgc2--vm"
   location              = azurerm_resource_group.rg.location
   resource_group_name   = azurerm_resource_group.rg.name
   network_interface_ids = [azurerm_network_interface.nic.id]
-  vm_size               = "Standard_DS1_v2"
+  vm_size               = "Standard_D2s_v3"
 
   storage_image_reference {
     publisher = "Canonical"
@@ -67,9 +67,9 @@ resource "azurerm_virtual_machine" "vm" {
   }
 
   os_profile {
-    computer_name  = "casopractico2vm"
-    admin_username = "adminuser"
-    admin_password = "Password1234!"
+    computer_name  = "casopractico2-lgc2-vm"
+    admin_username = "leo_gomez"
+    admin_password = "Rock4YouNot4Me"
   }
 
   os_profile_linux_config {
@@ -78,15 +78,15 @@ resource "azurerm_virtual_machine" "vm" {
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
-  name                = "casopractico2-aks"
+  name                = "casopractico2-lgc2--aks"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  dns_prefix          = "casopractico2-aks"
+  dns_prefix          = "casopractico2-lgc2--aks"
 
   default_node_pool {
     name       = "default"
     node_count = 1
-    vm_size    = "Standard_DS2_v2"
+    vm_size    = "Standard_D2s_v3"
   }
 
   identity {

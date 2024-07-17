@@ -50,7 +50,7 @@ resource "azurerm_virtual_machine" "vm" {
   location              = azurerm_resource_group.rg.location
   resource_group_name   = azurerm_resource_group.rg.name
   network_interface_ids = [azurerm_network_interface.nic.id]
-  vm_size               = "Standard_D2s_v3"
+  vm_size               = "Standard_B1ms""Standard_D2s_v3"
 
   storage_image_reference {
     publisher = "Canonical"
@@ -60,7 +60,7 @@ resource "azurerm_virtual_machine" "vm" {
   }
 
   storage_os_disk {
-    name              = "myosdisk1"
+    name              = "lgcdisk1"
     caching           = "ReadWrite"
     create_option     = "FromImage"
     managed_disk_type = "Standard_LRS"
@@ -77,26 +77,26 @@ resource "azurerm_virtual_machine" "vm" {
   }
 }
 
-resource "azurerm_kubernetes_cluster" "aks" {
-  name                = "casopractico2-lgc2--aks"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  dns_prefix          = "casopractico2-lgc2--aks"
-
-  default_node_pool {
-    name       = "default"
-    node_count = 1
-    vm_size    = "Standard_D2s_v3"
-  }
-
-  identity {
-    type = "SystemAssigned"
-  }
-
-  network_profile {
-    network_plugin    = "azure"
-    load_balancer_sku = "standard"
-  }
-
-}
+#resource "azurerm_kubernetes_cluster" "aks" {
+#  name                = "casopractico2-lgc2--aks"
+#  location            = azurerm_resource_group.rg.location
+#  resource_group_name = azurerm_resource_group.rg.name
+#  dns_prefix          = "casopractico2-lgc2--aks"
+#
+#  default_node_pool {
+#    name       = "default"
+#    node_count = 1
+#    vm_size    = "Standard_D2s_v3"
+#  }
+#
+#  identity {
+#    type = "SystemAssigned"
+#  }
+#
+#  network_profile {
+#    network_plugin    = "azure"
+#    load_balancer_sku = "standard"
+#  }
+#
+#}
 

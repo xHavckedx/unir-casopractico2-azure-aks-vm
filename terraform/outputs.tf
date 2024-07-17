@@ -7,7 +7,8 @@ output "acr_admin_username" {
 }
 
 output "acr_admin_password" {
-  value = azurerm_container_registry.acr.admin_password
+  value     = azurerm_container_registry.acr.admin_password
+  sensitive = true
 }
 
 output "vm_public_ip" {
@@ -16,5 +17,6 @@ output "vm_public_ip" {
 
 output "kube_config" {
   value = azurerm_kubernetes_cluster.aks.kube_config_raw
+  sensitive = true
 }
 

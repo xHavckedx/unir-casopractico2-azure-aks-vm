@@ -1,0 +1,58 @@
+---
+- hosts: azure_vms
+  become: true
+  vars:
+    acr_server: "{{ lookup('env', 'ACR_LOGIN_SERVER') }}"
+    acr_username: "{{ lookup('env', 'ACR_ADMIN_USERNAME') }}"
+    acr_password: "{{ lookup('env', 'ACR_ADMIN_PASSWORD') }}"
+    container_image: "casopractico2acr.azurecr.io/webapp:casopractico2"
+
+  tasks:
+    - name: Ensure Python is installed
+      raw: sudo apt-get update && sudo apt-get install -y python3
+
+    - name: Install required packages
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - podman
+        - httpd-tools
+
+    - name: Login to ACR
+      command: >
+        podman login {{ acr_server }}
+        --username {{ acr_username }}
+        --password {{ acr_password }}
+
+    - name: Pull container image
+      command: podman pull {{ container_image }}
+
+    - name: Run web application container
+      command: >
+        podman run -d --name webapp -p 80:80
+        -v /certs:/etc/certs -v /htpasswd:/etc/htpasswd
+        {{ container_image }}
+
+    - name: Setup container as a systemd service
+      copy:
+        dest: /etc/systemd/system/webapp.service
+        content: |
+          [Unit]
+          Description=Web Application Container
+          After=network.target
+
+          [Service]
+          ExecStart=/usr/bin/podman start -a webapp
+          ExecStop=/usr/bin/podman stop -t 2 webapp
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable and start the web application service
+      systemd:
+        name: webapp
+        enabled: true
+        state: started
+

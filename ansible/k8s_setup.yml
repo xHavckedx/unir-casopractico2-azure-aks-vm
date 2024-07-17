@@ -1,0 +1,117 @@
+---
+- hosts: localhost
+  vars:
+    kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
+    acr_server: "{{ lookup('env', 'ACR_LOGIN_SERVER') }}"
+    acr_username: "{{ lookup('env', 'ACR_ADMIN_USERNAME') }}"
+    acr_password: "{{ lookup('env', 'ACR_ADMIN_PASSWORD') }}"
+    container_image: "casopractico2acr.azurecr.io/k8sapp:casopractico2"
+
+  tasks:
+    - name: Configure Kubernetes to use ACR
+      command: >
+        az aks update -n casopractico2-aks
+        -g casopractico2-rg --attach-acr {{ acr_server }}
+
+    - name: Create Kubernetes secret for ACR
+      command: >
+        kubectl create secret docker-registry acr-secret
+        --docker-server={{ acr_server }}
+        --docker-username={{ acr_username }}
+        --docker-password={{ acr_password }}
+
+    - name: Deploy persistent storage application
+      copy:
+        dest: /tmp/k8s_pv.yaml
+        content: |
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: pv-volume
+          spec:
+            capacity:
+              storage: 1Gi
+            accessModes:
+              - ReadWriteOnce
+            hostPath:
+              path: "/mnt/data"
+      register: pv_file
+
+    - name: Apply persistent volume configuration
+      command: kubectl apply -f /tmp/k8s_pv.yaml
+
+    - name: Create persistent volume claim
+      copy:
+        dest: /tmp/k8s_pvc.yaml
+        content: |
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: pvc-volume
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+      register: pvc_file
+
+    - name: Apply persistent volume claim
+      command: kubectl apply -f /tmp/k8s_pvc.yaml
+
+    - name: Deploy application on Kubernetes
+      copy:
+        dest: /tmp/k8s_deployment.yaml
+        content: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: webapp
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: webapp
+            template:
+              metadata:
+                labels:
+                  app: webapp
+              spec:
+                containers:
+                - name: webapp
+                  image: {{ container_image }}
+                  ports:
+                  - containerPort: 80
+                  volumeMounts:
+                  - mountPath: "/mnt/data"
+                    name: storage
+                volumes:
+                - name: storage
+                  persistentVolumeClaim:
+                    claimName: pvc-volume
+      register: deploy_file
+
+    - name: Apply deployment configuration
+      command: kubectl apply -f /tmp/k8s_deployment.yaml
+
+    - name: Expose application via service
+      copy:
+        dest: /tmp/k8s_service.yaml
+        content: |
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: webapp-service
+          spec:
+            selector:
+              app: webapp
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 80
+            type: LoadBalancer
+      register: svc_file
+
+    - name: Apply service configuration
+      command: kubectl apply -f /tmp/k8s_service.yaml
+

@@ -5,7 +5,9 @@
     acr_server: "{{ lookup('env', 'ACR_LOGIN_SERVER') }}"
     acr_username: "{{ lookup('env', 'ACR_ADMIN_USERNAME') }}"
     acr_password: "{{ lookup('env', 'ACR_ADMIN_PASSWORD') }}"
-    container_image: "casopractico2acr.azurecr.io/webapp:casopractico2"
+    container_image: "casopractico2lgc2acr.azurecr.io/webapp-lgc:casopractico2"
+    image_name: "webapp-lgc"
+    user_folder: "/home/leo_gomez"
 
   tasks:
     - name: Ensure Python is installed
@@ -25,13 +27,38 @@
         --username {{ acr_username }}
         --password {{ acr_password }}
 
-    - name: Pull container image
-      command: podman pull {{ container_image }}
+    - name: Copy Dockerfile to the VM
+      copy:
+        src: webserver/Dockerfile
+        dest: {{ user_folder }}/Dockerfile
+
+    - name: Copy nginx.conf to the VM
+      copy:
+        src: webserver/nginx.conf
+        dest: {{ user_folder }}/nginx.conf
+
+    - name: Copy entrypoint.sh to the VM
+      copy:
+        src: webserver/entrypoint.sh
+        dest: {{ user_folder }}/entrypoint.sh
+
+    - name: Copy index.html to the VM
+      copy:
+        src: webserver/index.html
+        dest: {{ user_folder }}/index.html
+
+    - name: Build Podman image
+      command: >
+        podman build -t {{ container_image }} {{ user_folder }}
+
+    - name: Push Podman image to ACR
+      command: >
+        podman push {{ container_image }}
 
     - name: Run web application container
       command: >
-        podman run -d --name webapp -p 80:80
-        -v /certs:/etc/certs -v /htpasswd:/etc/htpasswd
+        podman run -d --name {{ image_name }} -p 443:443
+        -v {{ user_folder }}/certs:/etc/nginx/certs
         {{ container_image }}
 
     - name: Setup container as a systemd service
@@ -43,8 +70,8 @@
           After=network.target
 
           [Service]
-          ExecStart=/usr/bin/podman start -a webapp
-          ExecStop=/usr/bin/podman stop -t 2 webapp
+          ExecStart=/usr/bin/podman start -a {{ image_name }}
+          ExecStop=/usr/bin/podman stop -t 2 {{ image_name }}
           Restart=always
 
           [Install]
@@ -55,4 +82,3 @@
         name: webapp
         enabled: true
         state: started
-

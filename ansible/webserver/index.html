@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hola Mundo</title>
+</head>
+<body>
+    <h1>Hola Mundo</h1>
+    <p>Credenciales de Autenticación Básica:</p>
+    <p>Usuario: <span id="user"></span></p>
+    <p>Contraseña: <span id="password"></span></p>
+
+    <script>
+        document.getElementById("user").textContent = decodeURIComponent(atob("$(echo -n $USER | base64)"));
+        document.getElementById("password").textContent = decodeURIComponent(atob("$(echo -n $PASSWORD | base64)"));
+    </script>
+</body>
+</html>
+

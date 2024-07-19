@@ -2,9 +2,9 @@
 - hosts: azure_vms
   become: true
   vars:
-    acr_server: "{{ lookup('env', 'ACR_LOGIN_SERVER') }}"
-    acr_username: "{{ lookup('env', 'ACR_ADMIN_USERNAME') }}"
-    acr_password: "{{ lookup('env', 'ACR_ADMIN_PASSWORD') }}"
+    acr_server: "casopractico2lgc2acr.azurecr.io"
+    acr_username: "{{ ansible_env['ACR_ADMIN_USERNAME'] }}" 
+    acr_password: "{{ ansible_env['ACR_ADMIN_PASSWORD'] }}" 
     container_image: "casopractico2lgc2acr.azurecr.io/webapp-lgc:casopractico2"
     image_name: "webapp-lgc"
     user_folder: "/home/leo_gomez"
@@ -13,53 +13,92 @@
     - name: Ensure Python is installed
       raw: sudo apt-get update && sudo apt-get install -y python3
 
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Ensure necessary packages are installed (Ubuntu)
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - software-properties-common  # Necesario para agregar repositorios en Ubuntu
+        - curl
+      when: ansible_os_family == 'Debian'
+
+    - name: Add Podman repository (Ubuntu)
+      apt_repository:
+        repo: ppa:projectatomic/ppa
+        state: present
+      when: ansible_distribution == 'Ubuntu' and ansible_distribution_version == '18.04'
+
+    - name: Update apt cache after adding PPA (Ubuntu)
+      apt:
+        update_cache: yes
+      when: ansible_distribution == 'Ubuntu'
+
     - name: Install required packages
       apt:
         name: "{{ item }}"
         state: present
       loop:
         - podman
-        - httpd-tools
+        - apache2-utils
 
     - name: Login to ACR
-      command: >
-        podman login {{ acr_server }}
-        --username {{ acr_username }}
-        --password {{ acr_password }}
+      ansible.builtin.command: >
+        podman login "{{ acr_server }}" 
+        --username "{{ acr_username }}"
+        --password "{{ acr_password }}"
 
     - name: Copy Dockerfile to the VM
       copy:
         src: webserver/Dockerfile
-        dest: {{ user_folder }}/Dockerfile
+        dest: "{{ user_folder }}/Dockerfile"
 
     - name: Copy nginx.conf to the VM
       copy:
         src: webserver/nginx.conf
-        dest: {{ user_folder }}/nginx.conf
+        dest: "{{ user_folder }}/nginx.conf"
 
     - name: Copy entrypoint.sh to the VM
       copy:
         src: webserver/entrypoint.sh
-        dest: {{ user_folder }}/entrypoint.sh
+        dest: "{{ user_folder }}/entrypoint.sh"
 
     - name: Copy index.html to the VM
       copy:
         src: webserver/index.html
-        dest: {{ user_folder }}/index.html
+        dest: "{{ user_folder }}/index.html"
 
+    - name: Ensure /etc/containers directory exists
+      file:
+        path: /etc/containers
+        state: directory
+        mode: '0755'
+
+    - name: Create and configure registries.conf
+      copy:
+        dest: /etc/containers/registries.conf
+        content: |
+          [registries.search]
+          registries = ['docker.io']
+          
     - name: Build Podman image
       command: >
-        podman build -t {{ container_image }} {{ user_folder }}
+        podman build -t "{{ container_image }}" .
+      args:
+        chdir: "{{ user_folder }}"
 
     - name: Push Podman image to ACR
       command: >
-        podman push {{ container_image }}
+        podman push "{{ container_image }}"
 
     - name: Run web application container
       command: >
-        podman run -d --name {{ image_name }} -p 443:443
-        -v {{ user_folder }}/certs:/etc/nginx/certs
-        {{ container_image }}
+        podman run -d -p 443:443 
+        -v "{{ user_folder }}/certs:/etc/nginx/certs"
+        -e USER="{{ acr_username }}" -e PASSWORD="{{ acr_password }}" "{{ container_image }}"
 
     - name: Setup container as a systemd service
       copy:

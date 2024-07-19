@@ -1,8 +1,8 @@
 # Usar la imagen base de nginx
 FROM nginx:alpine
 
-# Instalar openssl para generar el certificado autofirmado
-RUN apk add --no-cache openssl
+# Instalar openssl y apache2-utils para generar el certificado y htpasswd
+RUN apk add --no-cache openssl apache2-utils
 
 # Crear directorios necesarios
 RUN mkdir -p /etc/nginx/certs /etc/nginx/conf.d /var/www/html

@@ -13,6 +13,14 @@ resource "azurerm_container_registry" "acr" {
   depends_on = [azurerm_resource_group.rg]
 }
 
+
+data "azurerm_container_registry" "acr_data" {
+  name                = azurerm_container_registry.acr.name
+  resource_group_name = azurerm_resource_group.rg.name
+
+  depends_on = [azurerm_container_registry.acr]
+}
+
 resource "azurerm_virtual_network" "vnet" {
   name                = "casopractico2-lgc2--vnet"
   resource_group_name = azurerm_resource_group.rg.name
@@ -56,6 +64,19 @@ resource "azurerm_network_security_group" "nsg" {
     source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
+  
+  # Añadir una regla para el puerto 443
+  security_rule {
+    name                       = "HTTPS"
+    priority                   = 1002
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
 
   depends_on = [azurerm_resource_group.rg]
 }
@@ -95,8 +116,8 @@ resource "azurerm_virtual_machine" "vm" {
 
   storage_image_reference {
     publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "18.04-LTS"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
     version   = "latest"
   }
 
@@ -110,13 +131,24 @@ resource "azurerm_virtual_machine" "vm" {
   os_profile {
     computer_name  = "casopractico2-lgc2-vm"
     admin_username = "leo_gomez"
+    admin_password = "some-shit1234"
+    custom_data    = <<-EOF
+      #cloud-config
+      write_files:
+        - path: /etc/environment
+          permissions: '0644'
+          content: |
+            ACR_ADMIN_USERNAME=${data.azurerm_container_registry.acr_data.admin_username}
+            ACR_ADMIN_PASSWORD=${data.azurerm_container_registry.acr_data.admin_password}
+    EOF
 
-    linux_config {
-      disable_password_authentication = true
-      ssh_keys {
-        path     = "/home/leo_gomez/.ssh/authorized_keys"
-        key_data = file("./ssh/authorized_keys")
-      }
+  }
+
+  os_profile_linux_config {
+    disable_password_authentication = true
+    ssh_keys {
+      path     = "/home/leo_gomez/.ssh/authorized_keys"
+      key_data = file("./.ssh/authorized_keys")
     }
   }
 

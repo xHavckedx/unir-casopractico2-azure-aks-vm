@@ -1,24 +1,20 @@
 ---
 - hosts: localhost
-  vars:
-    kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
-    acr_server: "{{ lookup('env', 'ACR_LOGIN_SERVER') }}"
-    acr_username: "{{ lookup('env', 'ACR_ADMIN_USERNAME') }}"
-    acr_password: "{{ lookup('env', 'ACR_ADMIN_PASSWORD') }}"
-    container_image: "casopractico2acr.azurecr.io/k8sapp:casopractico2"
+  vars_files:
+    - vars.yml
 
   tasks:
     - name: Configure Kubernetes to use ACR
       command: >
-        az aks update -n casopractico2-aks
-        -g casopractico2-rg --attach-acr {{ acr_server }}
+        az aks update -n casopractico2-lgc2--aks
+        -g casopractico2-lgc2--rg --attach-acr "{{ acr_server_resource }}"
 
     - name: Create Kubernetes secret for ACR
       command: >
         kubectl create secret docker-registry acr-secret
         --docker-server={{ acr_server }}
-        --docker-username={{ acr_username }}
-        --docker-password={{ acr_password }}
+        --docker-username="{{ acr_username }}"
+        --docker-password="{{ acr_password }}"
 
     - name: Deploy persistent storage application
       copy:
@@ -59,59 +55,68 @@
     - name: Apply persistent volume claim
       command: kubectl apply -f /tmp/k8s_pvc.yaml
 
-    - name: Deploy application on Kubernetes
+    - name: Deploy Jenkins on Kubernetes
       copy:
-        dest: /tmp/k8s_deployment.yaml
+        dest: /tmp/k8s_jenkins_deployment.yaml
         content: |
           apiVersion: apps/v1
           kind: Deployment
           metadata:
-            name: webapp
+            name: jenkins
           spec:
             replicas: 1
             selector:
               matchLabels:
-                app: webapp
+                app: jenkins
             template:
               metadata:
                 labels:
-                  app: webapp
+                  app: jenkins
               spec:
                 containers:
-                - name: webapp
-                  image: {{ container_image }}
+                - name: jenkins
+                  image: "{{ container_image }}"  # Asegúrate de que esta imagen sea la de Jenkins
                   ports:
-                  - containerPort: 80
+                  - containerPort: 8080
+                  - containerPort: 50000
+                  env:
+                  - name: JENKINS_USER
+                    value: "{{ acr_username }}"
+                  - name: JENKINS_PASSWORD
+                    value: "{{ acr_password }}"
                   volumeMounts:
-                  - mountPath: "/mnt/data"
-                    name: storage
+                  - mountPath: "/var/jenkins_home"
+                    name: jenkins-storage
                 volumes:
-                - name: storage
+                - name: jenkins-storage
                   persistentVolumeClaim:
                     claimName: pvc-volume
       register: deploy_file
 
-    - name: Apply deployment configuration
-      command: kubectl apply -f /tmp/k8s_deployment.yaml
+    - name: Apply Jenkins deployment configuration
+      command: kubectl apply -f /tmp/k8s_jenkins_deployment.yaml
 
-    - name: Expose application via service
+    - name: Expose Jenkins via service
       copy:
-        dest: /tmp/k8s_service.yaml
+        dest: /tmp/k8s_jenkins_service.yaml
         content: |
           apiVersion: v1
           kind: Service
           metadata:
-            name: webapp-service
+            name: jenkins-service
           spec:
             selector:
-              app: webapp
+              app: jenkins
             ports:
               - protocol: TCP
-                port: 80
-                targetPort: 80
+                port: 8080
+                targetPort: 8080
+              - protocol: TCP
+                port: 50000
+                targetPort: 50000
             type: LoadBalancer
       register: svc_file
 
-    - name: Apply service configuration
-      command: kubectl apply -f /tmp/k8s_service.yaml
+    - name: Apply Jenkins service configuration
+      command: kubectl apply -f /tmp/k8s_jenkins_service.yaml
 
